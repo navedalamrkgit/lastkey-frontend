@@ -1,0 +1,1303 @@
+import {
+  ChevronDown,
+  Menu,
+  ShieldCheck,
+  X,
+} from "lucide-react";
+import {
+  useEffect,
+  useState,
+} from "react";
+import {
+  Link,
+  NavLink,
+  useLocation,
+} from "react-router-dom";
+
+import Logo from "../branding/Logo";
+import Button from "../ui/Button";
+import { useAuth } from "../../hooks/useAuth";
+import { ROUTES } from "../../utils/routePaths";
+
+const navigationItems = [
+  {
+    label: "Features",
+    path: ROUTES.FEATURES,
+  },
+  {
+    label: "Security",
+    path: ROUTES.SECURITY,
+  },
+  {
+    label: "Pricing",
+    path: ROUTES.PRICING,
+  },
+  {
+    label: "About",
+    path: ROUTES.ABOUT,
+  },
+];
+
+export default function LandingNavbar() {
+  const location = useLocation();
+
+  const {
+    isAuthenticated,
+  } = useAuth();
+
+  const [
+    mobileMenuOpen,
+    setMobileMenuOpen,
+  ] = useState(false);
+
+  const [
+    resourcesOpen,
+    setResourcesOpen,
+  ] = useState(false);
+
+  useEffect(() => {
+    if (!mobileMenuOpen && !resourcesOpen) {
+      return;
+    }
+
+    setMobileMenuOpen(false);
+    setResourcesOpen(false);
+  }, [location.pathname, mobileMenuOpen, resourcesOpen]);
+
+  useEffect(() => {
+    if (!mobileMenuOpen) {
+      return undefined;
+    }
+
+    const previousOverflow =
+      document.body.style.overflow;
+
+    document.body.style.overflow =
+      "hidden";
+
+    function handleEscape(event) {
+      if (event.key === "Escape") {
+        setMobileMenuOpen(false);
+      }
+    }
+
+    window.addEventListener(
+      "keydown",
+      handleEscape,
+    );
+
+    return () => {
+      document.body.style.overflow =
+        previousOverflow;
+
+      window.removeEventListener(
+        "keydown",
+        handleEscape,
+      );
+    };
+  }, [mobileMenuOpen]);
+
+  return (
+    <header className="sticky top-0 z-50 border-b border-slate-200/80 bg-white/90 backdrop-blur-xl">
+      <div className="mx-auto flex h-18 max-w-[1440px] items-center px-4 sm:px-6 lg:px-8">
+        <Logo />
+
+        <nav className="ml-12 hidden items-center gap-1 lg:flex">
+          {navigationItems.map(
+            (item) => (
+              <NavLink
+                key={item.path}
+                to={item.path}
+                className={({
+                  isActive,
+                }) =>
+                  [
+                    "rounded-xl px-4 py-2.5 text-sm font-semibold transition",
+                    isActive
+                      ? "bg-blue-50 text-blue-700"
+                      : "text-slate-600 hover:bg-slate-50 hover:text-slate-950",
+                  ].join(" ")
+                }
+              >
+                {item.label}
+              </NavLink>
+            ),
+          )}
+
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() =>
+                setResourcesOpen(
+                  (current) => !current,
+                )
+              }
+              className="flex items-center gap-1 rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 hover:text-slate-950"
+            >
+              Resources
+
+              <ChevronDown
+                className={[
+                  "h-4 w-4 transition-transform",
+                  resourcesOpen
+                    ? "rotate-180"
+                    : "",
+                ].join(" ")}
+              />
+            </button>
+
+            {resourcesOpen && (
+              <div className="absolute left-0 top-[calc(100%+10px)] w-72 rounded-2xl border border-slate-200 bg-white p-2 shadow-2xl shadow-slate-950/10">
+                <Link
+                  to={ROUTES.PRIVACY}
+                  className="block rounded-xl p-3 transition hover:bg-slate-50"
+                >
+                  <p className="text-sm font-bold text-slate-900">
+                    Privacy
+                  </p>
+
+                  <p className="mt-1 text-xs leading-5 text-slate-500">
+                    Learn how your personal information is protected.
+                  </p>
+                </Link>
+
+                <Link
+                  to={ROUTES.TERMS}
+                  className="block rounded-xl p-3 transition hover:bg-slate-50"
+                >
+                  <p className="text-sm font-bold text-slate-900">
+                    Terms of service
+                  </p>
+
+                  <p className="mt-1 text-xs leading-5 text-slate-500">
+                    Review the conditions for using LastKey.
+                  </p>
+                </Link>
+              </div>
+            )}
+          </div>
+        </nav>
+
+        <div className="ml-auto hidden items-center gap-3 lg:flex">
+          <div className="mr-2 flex items-center gap-2 text-xs font-semibold text-emerald-700">
+            <ShieldCheck className="h-4 w-4" />
+
+            Secure by design
+          </div>
+
+          {isAuthenticated ? (
+            <Link to={ROUTES.DASHBOARD}>
+              <Button
+                size="medium"
+                variant="dark"
+              >
+                Open dashboard
+              </Button>
+            </Link>
+          ) : (
+            <>
+              <Link
+                to={ROUTES.LOGIN}
+                className="rounded-xl px-4 py-2.5 text-sm font-bold text-slate-600 transition hover:bg-slate-50 hover:text-slate-950"
+              >
+                Sign in
+              </Link>
+
+              <Link to={ROUTES.REGISTER}>
+                <Button size="medium">
+                  Create free account
+                </Button>
+              </Link>
+            </>
+          )}
+        </div>
+
+        <button
+          type="button"
+          onClick={() =>
+            setMobileMenuOpen(true)
+          }
+          className="ml-auto flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-slate-700 transition hover:bg-slate-50 lg:hidden"
+          aria-label="Open navigation menu"
+        >
+          <Menu className="h-5 w-5" />
+        </button>
+      </div>
+
+      {mobileMenuOpen && (
+        <div className="fixed inset-0 z-50 bg-white lg:hidden">
+          <div className="flex h-18 items-center border-b border-slate-200 px-4 sm:px-6">
+            <Logo />
+
+            <button
+              type="button"
+              onClick={() =>
+                setMobileMenuOpen(false)
+              }
+              className="ml-auto flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-slate-700"
+              aria-label="Close navigation menu"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+
+          <div className="flex h-[calc(100vh-72px)] flex-col overflow-y-auto px-4 py-6 sm:px-6">
+            <nav className="space-y-2">
+              {navigationItems.map(
+                (item) => (
+                  <NavLink
+                    key={item.path}
+                    to={item.path}
+                    className={({
+                      isActive,
+                    }) =>
+                      [
+                        "block rounded-2xl px-4 py-4 text-base font-bold transition",
+                        isActive
+                          ? "bg-blue-50 text-blue-700"
+                          : "text-slate-700 hover:bg-slate-50",
+                      ].join(" ")
+                    }
+                  >
+                    {item.label}
+                  </NavLink>
+                ),
+              )}
+
+              <Link
+                to={ROUTES.PRIVACY}
+                className="block rounded-2xl px-4 py-4 text-base font-bold text-slate-700 transition hover:bg-slate-50"
+              >
+                Privacy
+              </Link>
+
+              <Link
+                to={ROUTES.TERMS}
+                className="block rounded-2xl px-4 py-4 text-base font-bold text-slate-700 transition hover:bg-slate-50"
+              >
+                Terms
+              </Link>
+            </nav>
+
+            <div className="mt-auto space-y-3 border-t border-slate-200 pt-6">
+              {isAuthenticated ? (
+                <Link
+                  to={ROUTES.DASHBOARD}
+                  className="block"
+                >
+                  <Button
+                    fullWidth
+                    variant="dark"
+                  >
+                    Open dashboard
+                  </Button>
+                </Link>
+              ) : (
+                <>
+                  <Link
+                    to={ROUTES.LOGIN}
+                    className="block"
+                  >
+                    <Button
+                      fullWidth
+                      variant="secondary"
+                    >
+                      Sign in
+                    </Button>
+                  </Link>
+
+                  <Link
+                    to={ROUTES.REGISTER}
+                    className="block"
+                  >
+                    <Button fullWidth>
+                      Create free account
+                    </Button>
+                  </Link>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </header>
+  );
+}import {
+  ExternalLink,
+  GitBranch,
+  Mail,
+  ShieldCheck,
+} from "lucide-react";
+import { Link as RouterLink } from "react-router-dom";
+
+import Logo from "../branding/Logo";
+import { ROUTES } from "../../utils/routePaths";
+
+const footerGroups = [
+  {
+    title: "Product",
+    links: [
+      {
+        label: "Features",
+        path: ROUTES.FEATURES,
+      },
+      {
+        label: "Security",
+        path: ROUTES.SECURITY,
+      },
+      {
+        label: "Pricing",
+        path: ROUTES.PRICING,
+      },
+      {
+        label: "Dashboard",
+        path: ROUTES.DASHBOARD,
+      },
+    ],
+  },
+  {
+    title: "Company",
+    links: [
+      {
+        label: "About",
+        path: ROUTES.ABOUT,
+      },
+      {
+        label: "Create account",
+        path: ROUTES.REGISTER,
+      },
+      {
+        label: "Sign in",
+        path: ROUTES.LOGIN,
+      },
+    ],
+  },
+  {
+    title: "Legal",
+    links: [
+      {
+        label: "Privacy policy",
+        path: ROUTES.PRIVACY,
+      },
+      {
+        label: "Terms of service",
+        path: ROUTES.TERMS,
+      },
+    ],
+  },
+];
+
+export default function LandingFooter() {
+  return (
+    <footer className="border-t border-slate-200 bg-slate-50">
+      <div className="mx-auto max-w-[1440px] px-4 py-14 sm:px-6 lg:px-8">
+        <div className="grid gap-10 lg:grid-cols-[1.1fr_1.9fr]">
+          <div className="max-w-md">
+            <Logo showTagline />
+
+            <p className="mt-5 text-sm leading-7 text-slate-500">
+              LastKey helps individuals protect important
+              information, manage trusted nominees and prepare
+              a secure digital legacy.
+            </p>
+
+            <div className="mt-6 flex items-center gap-3">
+              <a
+                href="mailto:support@lastkey.example"
+                className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 transition hover:border-blue-200 hover:text-blue-600"
+                aria-label="Email LastKey"
+              >
+                <Mail className="h-4.5 w-4.5" />
+              </a>
+
+              <button
+                type="button"
+                className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 transition hover:border-blue-200 hover:text-blue-600"
+                aria-label="LastKey LinkedIn"
+              >
+                <ExternalLink className="h-4.5 w-4.5" />
+              </button>
+
+              <button
+                type="button"
+                className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 transition hover:border-blue-200 hover:text-blue-600"
+                aria-label="LastKey GitHub"
+              >
+                <GitBranch className="h-4.5 w-4.5" />
+              </button>
+            </div>
+          </div>
+
+          <div className="grid gap-8 sm:grid-cols-3">
+            {footerGroups.map(
+              (group) => (
+                <div key={group.title}>
+                  <h3 className="text-sm font-extrabold text-slate-950">
+                    {group.title}
+                  </h3>
+
+                  <ul className="mt-5 space-y-3">
+                    {group.links.map(
+                      (link) => (
+                        <li key={link.path}>
+                          <RouterLink
+                            to={link.path}
+                            className="text-sm text-slate-500 transition hover:text-blue-600"
+                          >
+                            {link.label}
+                          </RouterLink>
+                        </li>
+                      ),
+                    )}
+                  </ul>
+                </div>
+              ),
+            )}
+          </div>
+        </div>
+
+        <div className="mt-12 flex flex-col gap-4 border-t border-slate-200 pt-6 text-xs text-slate-400 sm:flex-row sm:items-center sm:justify-between">
+          <p>
+            © {new Date().getFullYear()} LastKey. All rights reserved.
+          </p>
+
+          <div className="flex items-center gap-2 text-emerald-700">
+            <ShieldCheck className="h-4 w-4" />
+            Security-first digital legacy platform
+          </div>
+        </div>
+      </div>
+    </footer>
+  );
+}import {
+  BrainCircuit,
+  CheckCircle2,
+  FileLock2,
+  ShieldAlert,
+  UsersRound,
+} from "lucide-react";
+
+import CTASection from "../../components/landing/CTASection";
+import FeaturesSection from "../../components/landing/FeaturesSection";
+
+const featureDetails = [
+  {
+    icon: FileLock2,
+    title: "Professional document vault",
+    description:
+      "Organise sensitive documents by category, status and expiry date while keeping them connected to your account.",
+    points: [
+      "Secure document uploads",
+      "Document categories",
+      "Expiry reminders",
+      "Preview and download controls",
+    ],
+  },
+  {
+    icon: BrainCircuit,
+    title: "AI document intelligence",
+    description:
+      "Use document analysis to reduce manual organisation and surface important information.",
+    points: [
+      "Automatic categorisation",
+      "Extracted document details",
+      "Document summaries",
+      "Duplicate and risk detection",
+    ],
+  },
+  {
+    icon: UsersRound,
+    title: "Nominee permissions",
+    description:
+      "Create different access rules for different people instead of sharing every document with everyone.",
+    points: [
+      "Nominee verification",
+      "Document-level assignments",
+      "Permission levels",
+      "Access-status tracking",
+    ],
+  },
+  {
+    icon: ShieldAlert,
+    title: "Emergency release workflow",
+    description:
+      "Support controlled access through identity verification, evidence review and waiting periods.",
+    points: [
+      "Emergency request creation",
+      "OTP verification",
+      "Evidence upload",
+      "Approved document release",
+    ],
+  },
+];
+
+export default function FeaturesPage() {
+  return (
+    <div className="page-enter">
+      <section className="landing-page-header">
+        <div className="mx-auto max-w-4xl px-4 py-20 text-center sm:px-6 sm:py-24 lg:px-8">
+          <p className="text-xs font-bold uppercase tracking-[0.2em] text-blue-600">
+            LastKey features
+          </p>
+
+          <h1 className="mt-5 text-4xl font-black tracking-tight text-slate-950 sm:text-5xl lg:text-6xl">
+            Everything you need to protect your digital legacy.
+          </h1>
+
+          <p className="mx-auto mt-6 max-w-3xl text-base leading-8 text-slate-600 sm:text-lg">
+            From document organisation to emergency access,
+            LastKey combines the tools needed to keep important
+            information secure and usable.
+          </p>
+        </div>
+      </section>
+
+      <FeaturesSection showHeader={false} />
+
+      <section className="bg-slate-50 py-20">
+        <div className="mx-auto max-w-[1240px] space-y-8 px-4 sm:px-6 lg:px-8">
+          {featureDetails.map(
+            (
+              feature,
+              index,
+            ) => {
+              const Icon =
+                feature.icon;
+
+              return (
+                <article
+                  key={feature.title}
+                  className={[
+                    "grid items-center gap-8 rounded-[32px] border border-slate-200 bg-white p-6 shadow-sm sm:p-8 lg:grid-cols-2",
+                    index % 2 === 1
+                      ? "lg:[&>div:first-child]:order-2"
+                      : "",
+                  ].join(" ")}
+                >
+                  <div>
+                    <span className="flex h-13 w-13 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
+                      <Icon className="h-6 w-6" />
+                    </span>
+
+                    <h2 className="mt-6 text-2xl font-black text-slate-950">
+                      {feature.title}
+                    </h2>
+
+                    <p className="mt-4 text-sm leading-7 text-slate-600">
+                      {
+                        feature.description
+                      }
+                    </p>
+
+                    <div className="mt-6 grid gap-3 sm:grid-cols-2">
+                      {feature.points.map(
+                        (point) => (
+                          <div
+                            key={point}
+                            className="flex items-center gap-2 text-sm font-semibold text-slate-700"
+                          >
+                            <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                            {point}
+                          </div>
+                        ),
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="rounded-3xl bg-slate-950 p-6 text-white">
+                    <div className="grid grid-cols-2 gap-4">
+                      {feature.points.map(
+                        (
+                          point,
+                          pointIndex,
+                        ) => (
+                          <div
+                            key={point}
+                            className="rounded-2xl border border-white/10 bg-white/5 p-4"
+                          >
+                            <p className="text-3xl font-black text-blue-400">
+                              {String(
+                                pointIndex +
+                                  1,
+                              ).padStart(
+                                2,
+                                "0",
+                              )}
+                            </p>
+
+                            <p className="mt-4 text-xs font-bold leading-5 text-slate-300">
+                              {point}
+                            </p>
+                          </div>
+                        ),
+                      )}
+                    </div>
+                  </div>
+                </article>
+              );
+            },
+          )}
+        </div>
+      </section>
+
+      <CTASection />
+    </div>
+  );
+}import {
+  Activity,
+  CheckCircle2,
+  Fingerprint,
+  KeyRound,
+  LockKeyhole,
+  ServerCog,
+  ShieldCheck,
+} from "lucide-react";
+
+import CTASection from "../../components/landing/CTASection";
+
+const securityLayers = [
+  {
+    icon: KeyRound,
+    title: "Secure authentication",
+    description:
+      "Access and refresh token authentication support protected sessions and controlled renewal.",
+  },
+  {
+    icon: Fingerprint,
+    title: "Identity verification",
+    description:
+      "Email verification, OTP checks and nominee verification protect sensitive actions.",
+  },
+  {
+    icon: LockKeyhole,
+    title: "Access permissions",
+    description:
+      "Users, nominees and administrators receive only the permissions required for their roles.",
+  },
+  {
+    icon: Activity,
+    title: "Activity visibility",
+    description:
+      "Important authentication, document and emergency events can be recorded for review.",
+  },
+  {
+    icon: ServerCog,
+    title: "Backend protection",
+    description:
+      "Spring Security, input validation and protected API routes form the server-side security layer.",
+  },
+  {
+    icon: ShieldCheck,
+    title: "Emergency safeguards",
+    description:
+      "Verification, evidence and waiting periods reduce the risk of unauthorised document release.",
+  },
+];
+
+export default function SecurityPage() {
+  return (
+    <div className="page-enter">
+      <section className="overflow-hidden bg-slate-950 text-white">
+        <div className="landing-grid-dark mx-auto max-w-[1440px] px-4 py-20 sm:px-6 sm:py-24 lg:px-8">
+          <div className="mx-auto max-w-4xl text-center">
+            <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-3xl bg-blue-500/15 text-blue-300">
+              <ShieldCheck className="h-8 w-8" />
+            </span>
+
+            <p className="mt-6 text-xs font-bold uppercase tracking-[0.2em] text-blue-300">
+              LastKey security
+            </p>
+
+            <h1 className="mt-5 text-4xl font-black tracking-tight sm:text-5xl lg:text-6xl">
+              Protection across every sensitive workflow.
+            </h1>
+
+            <p className="mx-auto mt-6 max-w-3xl text-base leading-8 text-slate-400 sm:text-lg">
+              LastKey combines secure authentication, role-based
+              permissions, verification and account activity
+              visibility to protect critical information.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section className="bg-white py-20 sm:py-24">
+        <div className="mx-auto max-w-[1240px] px-4 sm:px-6 lg:px-8">
+          <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+            {securityLayers.map(
+              ({
+                icon: Icon,
+                title,
+                description,
+              }) => (
+                <article
+                  key={title}
+                  className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm"
+                >
+                  <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
+                    <Icon className="h-5.5 w-5.5" />
+                  </span>
+
+                  <h2 className="mt-6 text-xl font-black text-slate-950">
+                    {title}
+                  </h2>
+
+                  <p className="mt-3 text-sm leading-7 text-slate-500">
+                    {description}
+                  </p>
+                </article>
+              ),
+            )}
+          </div>
+
+          <div className="mt-14 rounded-[32px] bg-slate-50 p-6 sm:p-10">
+            <div className="grid gap-10 lg:grid-cols-2">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.2em] text-blue-600">
+                  Security checklist
+                </p>
+
+                <h2 className="mt-4 text-3xl font-black text-slate-950">
+                  Users remain part of the security system.
+                </h2>
+
+                <p className="mt-4 text-sm leading-7 text-slate-600">
+                  Strong platform security works best when users
+                  also follow secure account practices.
+                </p>
+              </div>
+
+              <div className="space-y-3">
+                {[
+                  "Use a strong and unique password.",
+                  "Never share OTP or access tokens.",
+                  "Review active sessions regularly.",
+                  "Keep nominee information current.",
+                  "Respond quickly to security alerts.",
+                ].map((item) => (
+                  <div
+                    key={item}
+                    className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4"
+                  >
+                    <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-600" />
+
+                    <p className="text-sm font-semibold text-slate-700">
+                      {item}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <CTASection />
+    </div>
+  );
+}import {
+  CheckCircle2,
+  HelpCircle,
+} from "lucide-react";
+
+import CTASection from "../../components/landing/CTASection";
+import PricingSection from "../../components/landing/PricingSection";
+
+const frequentlyAskedQuestions = [
+  {
+    question:
+      "Can I start using LastKey for free?",
+    answer:
+      "Yes. The Essential plan is designed for users who want to begin building a basic secure document vault.",
+  },
+  {
+    question:
+      "Can I change plans later?",
+    answer:
+      "Yes. The planned subscription model allows users to upgrade as document storage and nominee requirements grow.",
+  },
+  {
+    question:
+      "Will nominees need a paid account?",
+    answer:
+      "The final commercial policy can allow verified nominees to respond to emergency requests without purchasing a full vault plan.",
+  },
+  {
+    question:
+      "Is the pricing final?",
+    answer:
+      "No. The values shown in this frontend are demonstration pricing and should be finalised before market launch.",
+  },
+];
+
+export default function PricingPage() {
+  return (
+    <div className="page-enter">
+      <section className="landing-page-header">
+        <div className="mx-auto max-w-4xl px-4 py-20 text-center sm:px-6 sm:py-24 lg:px-8">
+          <p className="text-xs font-bold uppercase tracking-[0.2em] text-blue-600">
+            Simple pricing
+          </p>
+
+          <h1 className="mt-5 text-4xl font-black tracking-tight text-slate-950 sm:text-5xl lg:text-6xl">
+            Choose the right protection for your digital life.
+          </h1>
+
+          <p className="mx-auto mt-6 max-w-3xl text-base leading-8 text-slate-600 sm:text-lg">
+            Start with a free vault and upgrade when you need
+            more documents, nominees and emergency-access tools.
+          </p>
+        </div>
+      </section>
+
+      <PricingSection fullPage />
+
+      <section className="bg-white py-20">
+        <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">
+          <div className="text-center">
+            <HelpCircle className="mx-auto h-10 w-10 text-blue-600" />
+
+            <h2 className="mt-4 text-3xl font-black text-slate-950">
+              Frequently asked questions
+            </h2>
+          </div>
+
+          <div className="mt-10 space-y-4">
+            {frequentlyAskedQuestions.map(
+              (item) => (
+                <article
+                  key={item.question}
+                  className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm"
+                >
+                  <div className="flex items-start gap-3">
+                    <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-blue-600" />
+
+                    <div>
+                      <h3 className="text-base font-extrabold text-slate-950">
+                        {item.question}
+                      </h3>
+
+                      <p className="mt-2 text-sm leading-7 text-slate-500">
+                        {item.answer}
+                      </p>
+                    </div>
+                  </div>
+                </article>
+              ),
+            )}
+          </div>
+        </div>
+      </section>
+
+      <CTASection />
+    </div>
+  );
+}import {
+  BrainCircuit,
+  HeartHandshake,
+  Lightbulb,
+  ShieldCheck,
+  Target,
+} from "lucide-react";
+
+import CTASection from "../../components/landing/CTASection";
+
+const values = [
+  {
+    icon: ShieldCheck,
+    title: "Security first",
+    description:
+      "Sensitive information and access decisions must be treated with seriousness.",
+  },
+  {
+    icon: HeartHandshake,
+    title: "Family clarity",
+    description:
+      "Technology should reduce uncertainty for families during difficult situations.",
+  },
+  {
+    icon: BrainCircuit,
+    title: "Useful intelligence",
+    description:
+      "AI should help users organise and understand documents, not complicate the experience.",
+  },
+  {
+    icon: Lightbulb,
+    title: "Practical innovation",
+    description:
+      "Every feature should solve a real access, organisation or security problem.",
+  },
+];
+
+export default function AboutPage() {
+  return (
+    <div className="page-enter">
+      <section className="landing-page-header">
+        <div className="mx-auto max-w-4xl px-4 py-20 text-center sm:px-6 sm:py-24 lg:px-8">
+          <p className="text-xs font-bold uppercase tracking-[0.2em] text-blue-600">
+            About LastKey
+          </p>
+
+          <h1 className="mt-5 text-4xl font-black tracking-tight text-slate-950 sm:text-5xl lg:text-6xl">
+            Built to solve a problem most families avoid discussing.
+          </h1>
+
+          <p className="mx-auto mt-6 max-w-3xl text-base leading-8 text-slate-600 sm:text-lg">
+            Important information is often scattered across
+            devices, email accounts, cupboards and cloud folders.
+            LastKey creates one controlled system for organising
+            and releasing it.
+          </p>
+        </div>
+      </section>
+
+      <section className="bg-white py-20">
+        <div className="mx-auto max-w-[1240px] px-4 sm:px-6 lg:px-8">
+          <div className="grid items-center gap-10 lg:grid-cols-2">
+            <div>
+              <span className="flex h-13 w-13 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
+                <Target className="h-6 w-6" />
+              </span>
+
+              <h2 className="mt-6 text-3xl font-black text-slate-950">
+                Our mission
+              </h2>
+
+              <p className="mt-5 text-base leading-8 text-slate-600">
+                LastKey aims to make digital legacy preparation
+                understandable, secure and practical for ordinary
+                people. Users should be able to organise important
+                records and define access without relying on unsafe
+                password sharing or unstructured folders.
+              </p>
+            </div>
+
+            <div className="rounded-[32px] bg-slate-950 p-7 text-white sm:p-10">
+              <p className="text-xs font-bold uppercase tracking-[0.2em] text-blue-300">
+                The problem
+              </p>
+
+              <p className="mt-5 text-2xl font-black leading-snug">
+                Families may know that important documents exist,
+                but not where they are, how to access them or
+                which version is current.
+              </p>
+
+              <p className="mt-5 text-sm leading-7 text-slate-400">
+                LastKey addresses this gap through secure storage,
+                structured nominee access, document intelligence
+                and controlled emergency release.
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-16 grid gap-5 md:grid-cols-2 lg:grid-cols-4">
+            {values.map(
+              ({
+                icon: Icon,
+                title,
+                description,
+              }) => (
+                <article
+                  key={title}
+                  className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm"
+                >
+                  <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100 text-slate-700">
+                    <Icon className="h-5 w-5" />
+                  </span>
+
+                  <h3 className="mt-5 text-lg font-black text-slate-950">
+                    {title}
+                  </h3>
+
+                  <p className="mt-3 text-sm leading-7 text-slate-500">
+                    {description}
+                  </p>
+                </article>
+              ),
+            )}
+          </div>
+        </div>
+      </section>
+
+      <CTASection />
+    </div>
+  );
+}import React from 'react'
+
+const PrivacyPage = () => (
+  <div>PrivacyPage</div>
+)
+
+export default PrivacyPage
+import React from 'react'
+
+const TermsPage = () => (
+  <div>TermsPage</div>
+)
+
+export default TermsPage
+import {
+  FileText,
+  ShieldCheck,
+} from "lucide-react";
+
+export default function LegalPage({
+  type = "privacy",
+}) {
+  const isPrivacy =
+    type === "privacy";
+
+  const content = isPrivacy
+    ? {
+        eyebrow: "Privacy policy",
+        title:
+          "How LastKey handles your information",
+        updated:
+          "Prototype policy — update before production launch",
+        sections: [
+          {
+            title:
+              "1. Information you provide",
+            paragraphs: [
+              "LastKey may collect account information such as your name, email address, phone number and authentication details.",
+              "The platform may also process document metadata, nominee information, emergency-access details and uploaded files when you choose to use those features.",
+            ],
+          },
+          {
+            title:
+              "2. How information is used",
+            paragraphs: [
+              "Information may be used to provide authentication, document management, notifications, nominee workflows, emergency access and security monitoring.",
+              "Product analytics may be used to improve performance and user experience when implemented with appropriate safeguards.",
+            ],
+          },
+          {
+            title:
+              "3. Document privacy",
+            paragraphs: [
+              "Uploaded documents should be treated as confidential user content. Production deployment must use secure storage, access controls and encryption practices suitable for sensitive information.",
+            ],
+          },
+          {
+            title:
+              "4. Sharing and access",
+            paragraphs: [
+              "Information should only be shared with nominees, administrators or service providers according to defined permissions, user instructions and legal requirements.",
+            ],
+          },
+          {
+            title:
+              "5. Data retention",
+            paragraphs: [
+              "Production retention periods should be documented for account data, deleted documents, audit logs, emergency records and backups.",
+            ],
+          },
+          {
+            title:
+              "6. Your choices",
+            paragraphs: [
+              "Users should be able to update profile information, modify nominee permissions, remove documents and request account deletion subject to legal and security requirements.",
+            ],
+          },
+        ],
+      }
+    : {
+        eyebrow: "Terms of service",
+        title:
+          "Rules for using LastKey",
+        updated:
+          "Prototype terms — obtain legal review before production launch",
+        sections: [
+          {
+            title:
+              "1. Acceptance of terms",
+            paragraphs: [
+              "By creating an account or using LastKey, users agree to follow the applicable terms, policies and lawful instructions associated with the service.",
+            ],
+          },
+          {
+            title:
+              "2. Account responsibility",
+            paragraphs: [
+              "Users are responsible for maintaining accurate account information, protecting login credentials and reviewing activity associated with their accounts.",
+            ],
+          },
+          {
+            title:
+              "3. Uploaded content",
+            paragraphs: [
+              "Users must only upload documents they are authorised to store and manage. Illegal, malicious or unauthorised content is prohibited.",
+            ],
+          },
+          {
+            title:
+              "4. Nominee information",
+            paragraphs: [
+              "Users are responsible for providing accurate nominee details and selecting appropriate document permissions and emergency-access settings.",
+            ],
+          },
+          {
+            title:
+              "5. Emergency access",
+            paragraphs: [
+              "Emergency-access workflows support controlled digital release but do not replace legal advice, wills, succession planning or official government procedures.",
+            ],
+          },
+          {
+            title:
+              "6. Service availability",
+            paragraphs: [
+              "Production terms should define uptime expectations, maintenance, suspension rights, subscription rules and liability limitations.",
+            ],
+          },
+        ],
+      };
+
+  return (
+    <div className="page-enter bg-slate-50">
+      <section className="border-b border-slate-200 bg-white">
+        <div className="mx-auto max-w-4xl px-4 py-16 text-center sm:px-6 lg:px-8">
+          <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
+            {isPrivacy ? (
+              <ShieldCheck className="h-7 w-7" />
+            ) : (
+              <FileText className="h-7 w-7" />
+            )}
+          </span>
+
+          <p className="mt-5 text-xs font-bold uppercase tracking-[0.2em] text-blue-600">
+            {content.eyebrow}
+          </p>
+
+          <h1 className="mt-4 text-4xl font-black tracking-tight text-slate-950 sm:text-5xl">
+            {content.title}
+          </h1>
+
+          <p className="mt-5 text-sm text-slate-500">
+            {content.updated}
+          </p>
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-4xl px-4 py-14 sm:px-6 lg:px-8">
+        <div className="rounded-[32px] border border-slate-200 bg-white p-6 shadow-sm sm:p-10">
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+            <p className="text-sm font-bold text-amber-900">
+              Important prototype notice
+            </p>
+
+            <p className="mt-1 text-xs leading-6 text-amber-700">
+              This page is frontend placeholder content and is
+              not legal advice. Replace it with a professionally
+              reviewed policy before public launch.
+            </p>
+          </div>
+
+          <div className="mt-8 space-y-9">
+            {content.sections.map(
+              (section) => (
+                <article
+                  key={section.title}
+                >
+                  <h2 className="text-xl font-black text-slate-950">
+                    {section.title}
+                  </h2>
+
+                  <div className="mt-3 space-y-3">
+                    {section.paragraphs.map(
+                      (
+                        paragraph,
+                        index,
+                      ) => (
+                        <p
+                          key={index}
+                          className="text-sm leading-7 text-slate-600"
+                        >
+                          {paragraph}
+                        </p>
+                      ),
+                    )}
+                  </div>
+                </article>
+              ),
+            )}
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}export const ROUTES = {
+  // Public website
+  HOME: "/",
+  FEATURES: "/features",
+  SECURITY: "/security",
+  PRICING: "/pricing",
+  ABOUT: "/about",
+  PRIVACY: "/privacy",
+  TERMS: "/terms",
+
+  // Authentication
+  LOGIN: "/login",
+  REGISTER: "/register",
+  VERIFY_EMAIL: "/verify-email",
+  FORGOT_PASSWORD: "/forgot-password",
+  RESET_PASSWORD: "/reset-password",
+
+  // Main application
+  DASHBOARD: "/dashboard",
+
+  // Documents
+  DOCUMENTS: "/documents",
+  DOCUMENT_UPLOAD: "/documents/upload",
+  DOCUMENT_DETAILS: "/documents/:documentId",
+  DOCUMENT_PREVIEW: "/documents/:documentId/preview",
+  DOCUMENT_ANALYSIS: "/documents/:documentId/analysis",
+
+  // Nominees
+  NOMINEES: "/nominees",
+  ADD_NOMINEE: "/nominees/add",
+  NOMINEE_DETAILS: "/nominees/:nomineeId",
+  NOMINEE_PERMISSIONS:
+    "/nominees/:nomineeId/permissions",
+
+  // Emergency access
+  EMERGENCY: "/emergency",
+  CREATE_EMERGENCY: "/emergency/create",
+  EMERGENCY_DETAILS:
+    "/emergency/:requestId",
+  EMERGENCY_VERIFY:
+    "/emergency/:requestId/verify",
+
+  // Public emergency portal
+  EMERGENCY_ACCESS:
+    "/emergency-access/:accessCode",
+
+  // Notifications
+  NOTIFICATIONS: "/notifications",
+
+  // Profile and settings
+  PROFILE: "/profile",
+  SETTINGS: "/settings",
+  CHANGE_PASSWORD: "/change-password",
+
+  // Security
+  SECURITY_CENTER: "/security-center",
+  LOGIN_ACTIVITY:
+    "/security-center/login-activity",
+  ACTIVE_SESSIONS:
+    "/security-center/sessions",
+
+  // Admin
+  ADMIN_DASHBOARD: "/admin",
+  ADMIN_USERS: "/admin/users",
+  ADMIN_AUDIT_LOGS: "/admin/audit-logs",
+  ADMIN_EMERGENCY_REVIEW:
+    "/admin/emergency-reviews",
+
+  // Error pages
+  UNAUTHORIZED: "/unauthorized",
+  FORBIDDEN: "/forbidden",
+  SERVER_ERROR: "/server-error",
+  NOT_FOUND: "*",
+};
