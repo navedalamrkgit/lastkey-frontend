@@ -188,12 +188,12 @@ export default function Topbar({
         " ",
       ) || "User";
 
-  // AuthContext is updated immediately after a successful profile-image upload.
-  // React Query may still contain the previous cached profile, so prefer the
-  // authenticated user's image and use the query value only as a fallback.
+  // The profile query contains the latest server value. Use the authenticated
+  // user only as a fallback while the query is loading. This prevents an old
+  // stored image URL from keeping the top-right avatar on the initials fallback.
   const rawProfileImageUrl =
-    authenticatedUser?.profileImageUrl ||
     profileQuery.data?.profileImageUrl ||
+    authenticatedUser?.profileImageUrl ||
     null;
 
   const profileImageUrl =

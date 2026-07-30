@@ -19,11 +19,11 @@ import { useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
 
 import { profileApi } from "../../api/profileApi";
+import { useAuth } from "../../hooks/useAuth";
 import EmailVerificationModal from "../../components/profile/EmailVerificationModal";
 import ProfileForm from "../../components/profile/ProfileForm";
 import Button from "../../components/ui/Button";
 import LoadingSkeleton from "../../components/ui/LoadingSkeleton";
-import { useAuth } from "../../hooks/useAuth";
 import { getErrorMessage } from "../../utils/errorHandler";
 
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
@@ -293,29 +293,33 @@ export default function ProfilePage() {
   const imageUploadMutation = useMutation({
     mutationFn: (file) => profileApi.updateProfileImage(file),
     onSuccess: async (response) => {
-      toast.success("Profile image updated successfully.");
-      setSelectedImage(null);
-      setPreviewUrl(null);
-      setImageError("");
-      if (fileInputRef.current) fileInputRef.current.value = "";
-
-      // Some backends return the updated user from the upload endpoint.
-      // Use it immediately when available, then refetch the canonical profile.
       const uploadPayload = response?.data?.data ?? response?.data;
-      if (uploadPayload && typeof uploadPayload === "object") {
+
+      if (uploadPayload?.profileImageUrl) {
+        updateUser(uploadPayload);
         queryClient.setQueryData(["profile"], (currentProfile) => ({
           ...(currentProfile || {}),
           ...uploadPayload,
         }));
-        updateUser(uploadPayload);
       }
 
       const refreshedResponse = await profileApi.getProfile();
       const refreshedProfile =
         refreshedResponse?.data?.data ?? refreshedResponse?.data;
 
-      queryClient.setQueryData(["profile"], refreshedProfile);
-      updateUser(refreshedProfile);
+      if (refreshedProfile) {
+        queryClient.setQueryData(["profile"], refreshedProfile);
+        updateUser(refreshedProfile);
+      }
+
+      toast.success("Profile image updated successfully.");
+      setSelectedImage(null);
+      setPreviewUrl(null);
+      setImageError("");
+
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
     },
     onError: (error) => {
       toast.error(getErrorMessage(error, "Unable to update profile image."));
@@ -336,15 +340,17 @@ export default function ProfilePage() {
   const verifyOtpMutation = useMutation({
     mutationFn: (otp) => profileApi.verifyEmailOtp(otp),
     onSuccess: async () => {
-      toast.success("Email verified successfully.");
-      setVerificationModalOpen(false);
-
       const refreshedResponse = await profileApi.getProfile();
       const refreshedProfile =
         refreshedResponse?.data?.data ?? refreshedResponse?.data;
 
-      queryClient.setQueryData(["profile"], refreshedProfile);
-      updateUser(refreshedProfile);
+      if (refreshedProfile) {
+        queryClient.setQueryData(["profile"], refreshedProfile);
+        updateUser(refreshedProfile);
+      }
+
+      toast.success("Email verified successfully.");
+      setVerificationModalOpen(false);
     },
     onError: (error) => {
       toast.error(getErrorMessage(error, "Invalid or expired OTP."));

@@ -5,12 +5,12 @@ import {
   ShieldCheck,
   UserRound,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
 import { useAuth } from "../../hooks/useAuth";
-import { ROUTES } from "../../utils/routePaths";
 import { getInitials } from "../../utils/getInitials";
+import { ROUTES } from "../../utils/routePaths";
 
 function resolveProfileImageUrl(imageUrl) {
   if (!imageUrl) {
@@ -51,23 +51,13 @@ export default function ProfileDropdown({ onClose }) {
     [user?.firstName, user?.lastName].filter(Boolean).join(" ") ||
     "LastKey User";
 
-  const profileImageUrl = resolveProfileImageUrl(
-    user?.profileImageUrl,
-  );
-
+  const profileImageUrl = resolveProfileImageUrl(user?.profileImageUrl);
   const showProfileImage = Boolean(profileImageUrl) && !imageFailed;
-
-  useEffect(() => {
-    setImageFailed(false);
-  }, [profileImageUrl]);
 
   async function handleLogout() {
     await logout();
     onClose?.();
-
-    navigate(ROUTES.LOGIN, {
-      replace: true,
-    });
+    navigate(ROUTES.LOGIN, { replace: true });
   }
 
   const links = [
@@ -98,11 +88,10 @@ export default function ProfileDropdown({ onClose }) {
           <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-blue-600 text-sm font-extrabold text-white shadow-lg shadow-blue-600/20">
             {showProfileImage ? (
               <img
-                key={profileImageUrl}
                 src={profileImageUrl}
                 alt={fullName}
-                onError={() => setImageFailed(true)}
                 className="h-full w-full object-cover"
+                onError={() => setImageFailed(true)}
               />
             ) : (
               initials
