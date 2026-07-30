@@ -341,12 +341,35 @@ export default function ProfilePage() {
         postalCode: values.postalCode?.trim() || null,
         dateOfBirth: values.dateOfBirth || null,
       }),
-    onSuccess: (response) => {
-      const updatedProfile = response?.data?.data ?? response?.data;
+    onSuccess: async (response) => {
+      const updatePayload =
+        response?.data?.data ?? response?.data ?? {};
+
+      // Merge the update response instead of replacing the complete cached profile.
+      queryClient.setQueryData(["profile"], (currentProfile) => ({
+        ...(currentProfile || {}),
+        ...(updatePayload || {}),
+      }));
+      updateUser(updatePayload);
+
+      try {
+        // Fetch the complete saved profile so the completion meter uses all fields.
+        const refreshedResponse = await profileApi.getProfile();
+        const refreshedProfile =
+          refreshedResponse?.data?.data ?? refreshedResponse?.data;
+
+        if (refreshedProfile) {
+          queryClient.setQueryData(["profile"], refreshedProfile);
+          updateUser(refreshedProfile);
+        }
+      } catch (refreshError) {
+        console.error(
+          "Profile was updated, but the latest profile could not be refreshed:",
+          refreshError,
+        );
+      }
 
       toast.success("Profile updated successfully.");
-      queryClient.setQueryData(["profile"], updatedProfile);
-      updateUser(updatedProfile);
     },
     onError: (error) => {
       toast.error(getErrorMessage(error, "Unable to update your profile."));
