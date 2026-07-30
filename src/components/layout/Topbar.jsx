@@ -101,11 +101,16 @@ export default function Topbar({
         const response =
           await profileApi.getProfile();
 
-        return response.data;
+        return (
+          response?.data?.data ??
+          response?.data
+        );
       },
 
       staleTime:
         5 * 60 * 1000,
+
+      refetchOnWindowFocus: true,
     });
 
   const [
@@ -145,9 +150,10 @@ export default function Topbar({
   const mobileSearchInputRef =
     useRef(null);
 
-  const user =
-    profileQuery.data ||
-    authenticatedUser;
+  const user = {
+    ...(profileQuery.data || {}),
+    ...(authenticatedUser || {}),
+  };
 
   const initials =
     getInitials(
