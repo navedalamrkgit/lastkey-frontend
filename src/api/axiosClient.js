@@ -16,7 +16,6 @@ const API_TIMEOUT = Number(
 
 const axiosClient = axios.create({
   baseURL: API_BASE_URL,
-
   timeout: API_TIMEOUT,
 
   headers: {
@@ -26,7 +25,6 @@ const axiosClient = axios.create({
 
 const refreshClient = axios.create({
   baseURL: API_BASE_URL,
-
   timeout: API_TIMEOUT,
 
   headers: {
@@ -38,43 +36,34 @@ const refreshClient = axios.create({
   },
 });
 
-/*
- * A single refresh request will be shared
- * when multiple requests receive 401 together.
- */
 let refreshPromise = null;
 
-/*
- * Tracks every active authenticated request.
- * These requests are cancelled immediately
- * when the user logs out.
- */
 const activeRequestControllers =
   new Set();
 
+function getLoginRoute() {
+  return ROUTES.LOGIN || "/login";
+}
+
 function redirectTo(path) {
+  const targetPath =
+    path || getLoginRoute();
+
   if (
-    !path ||
-    window.location.pathname === path
+    window.location.pathname ===
+    targetPath
   ) {
     return;
   }
 
-  window.location.replace(path);
-}
-
-function createRequestController() {
-  const controller =
-    new AbortController();
-
-  activeRequestControllers.add(
-    controller,
+  window.location.replace(
+    targetPath,
   );
-
-  return controller;
 }
 
-function removeRequestController(config) {
+function removeRequestController(
+  config,
+) {
   const controller =
     config?._requestAbortController;
 
@@ -87,19 +76,15 @@ function removeRequestController(config) {
   );
 }
 
-/*
- * Cancels all pending Axios requests.
- * Used during logout and invalid sessions.
- */
 export function cancelAllRequests(
-  reason = "Session ended",
+  reason = "Request cancelled",
 ) {
   activeRequestControllers.forEach(
     (controller) => {
-      try {
+      if (
+        !controller.signal.aborted
+      ) {
         controller.abort(reason);
-      } catch {
-        // Ignore already-aborted controllers.
       }
     },
   );
@@ -107,9 +92,6 @@ export function cancelAllRequests(
   activeRequestControllers.clear();
 }
 
-/*
- * Axios cancellation helper.
- */
 export function isRequestCancelled(
   error,
 ) {
@@ -118,6 +100,26 @@ export function isRequestCancelled(
     error?.code === "ERR_CANCELED" ||
     error?.name === "CanceledError" ||
     error?.name === "AbortError"
+  );
+}
+
+function clearAuthenticationAndRedirect() {
+  /*
+   * Token pehle clear karo, taaki koi
+   * nayi protected request start na ho.
+   */
+  tokenService.clearSession();
+
+  /*
+   * Existing profile/notification requests
+   * turant cancel karo.
+   */
+  cancelAllRequests(
+    "Authentication session ended",
+  );
+
+  redirectTo(
+    getLoginRoute(),
   );
 }
 
@@ -139,11 +141,15 @@ async function refreshAccessToken() {
       },
     );
 
+  const responseBody =
+    response?.data?.data ??
+    response?.data;
+
   const newAccessToken =
-    response.data?.accessToken;
+    responseBody?.accessToken;
 
   const newRefreshToken =
-    response.data?.refreshToken ||
+    responseBody?.refreshToken ||
     refreshToken;
 
   if (!newAccessToken) {
@@ -168,21 +174,26 @@ axiosClient.interceptors.request.use(
     const accessToken =
       tokenService.getAccessToken();
 
-    if (accessToken) {
-      config.headers =
-        config.headers || {};
+    config.headers =
+      config.headers || {};
 
+    if (accessToken) {
       config.headers.Authorization =
         `Bearer ${accessToken}`;
     }
 
     /*
-     * Do not override a signal explicitly
-     * supplied by a component.
+     * Component ne khud AbortSignal nahi diya,
+     * to request ko global logout cancellation
+     * system me register karo.
      */
     if (!config.signal) {
       const controller =
-        createRequestController();
+        new AbortController();
+
+      activeRequestControllers.add(
+        controller,
+      );
 
       config.signal =
         controller.signal;
@@ -215,11 +226,6 @@ axiosClient.interceptors.response.use(
       originalRequest,
     );
 
-    /*
-     * Cancellation during logout is expected.
-     * Do not refresh tokens or redirect to
-     * error pages for cancelled requests.
-     */
     if (isRequestCancelled(error)) {
       return Promise.reject(error);
     }
@@ -230,25 +236,57 @@ axiosClient.interceptors.response.use(
     const requestUrl =
       originalRequest?.url || "";
 
-    const isAuthRequest =
+    const isLoginRequest =
       requestUrl.includes(
         "/auth/login",
-      ) ||
+      );
+
+    const isRegisterRequest =
       requestUrl.includes(
         "/auth/register",
-      ) ||
-      requestUrl.includes(
-        "/auth/logout",
-      ) ||
+      );
+
+    const isRefreshRequest =
       requestUrl.includes(
         "/auth/refresh-token",
       );
 
+    const isLogoutRequest =
+      requestUrl.includes(
+        "/auth/logout",
+      );
+
+    const isPublicAuthRequest =
+      isLoginRequest ||
+      isRegisterRequest ||
+      isRefreshRequest ||
+      isLogoutRequest;
+
+    /*
+     * Logout ke baad React component agar
+     * /users/me ya notification API dubara call
+     * kare aur 401 aaye, retry mat karo.
+     * Login page par immediately bhejo.
+     */
+    if (
+      status === 401 &&
+      !isPublicAuthRequest &&
+      !tokenService.hasSession()
+    ) {
+      clearAuthenticationAndRedirect();
+
+      return Promise.reject(error);
+    }
+
+    /*
+     * Active session me access token expire hua
+     * ho to refresh token se ek baar retry karo.
+     */
     if (
       status === 401 &&
       originalRequest &&
       !originalRequest._retry &&
-      !isAuthRequest &&
+      !isPublicAuthRequest &&
       tokenService.hasSession()
     ) {
       originalRequest._retry =
@@ -277,8 +315,8 @@ axiosClient.interceptors.response.use(
           `Bearer ${accessToken}`;
 
         /*
-         * Old request signal may already
-         * be completed or aborted.
+         * Purana AbortSignal completed ho sakta
+         * hai, retry ke liye naya signal banega.
          */
         delete originalRequest.signal;
         delete originalRequest
@@ -288,17 +326,7 @@ axiosClient.interceptors.response.use(
           originalRequest,
         );
       } catch (refreshError) {
-        cancelAllRequests(
-          "Authentication expired",
-        );
-
-        tokenService.clearSession();
-
-        redirectTo(
-          ROUTES.LOGIN ||
-            ROUTES.UNAUTHORIZED ||
-            "/login",
-        );
+        clearAuthenticationAndRedirect();
 
         return Promise.reject(
           refreshError,
@@ -308,9 +336,7 @@ axiosClient.interceptors.response.use(
 
     if (
       status === 403 &&
-      !requestUrl.includes(
-        "/auth/",
-      )
+      !isPublicAuthRequest
     ) {
       redirectTo(
         ROUTES.FORBIDDEN ||
