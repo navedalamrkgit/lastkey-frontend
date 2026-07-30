@@ -150,9 +150,11 @@ export default function Topbar({
   const mobileSearchInputRef =
     useRef(null);
 
+  // Authentication data is the fallback. The latest profile query must
+  // override it so a newly uploaded photo/name appears immediately.
   const user = {
-    ...(profileQuery.data || {}),
     ...(authenticatedUser || {}),
+    ...(profileQuery.data || {}),
   };
 
   const initials =

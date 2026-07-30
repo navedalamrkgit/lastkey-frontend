@@ -5,27 +5,64 @@ import {
   ShieldCheck,
   UserRound,
 } from "lucide-react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
 import { useAuth } from "../../hooks/useAuth";
 import { ROUTES } from "../../utils/routePaths";
 import { getInitials } from "../../utils/getInitials";
 
-export default function ProfileDropdown({
-  onClose,
-}) {
+function resolveProfileImageUrl(imageUrl) {
+  if (!imageUrl) {
+    return null;
+  }
+
+  if (
+    imageUrl.startsWith("http://") ||
+    imageUrl.startsWith("https://") ||
+    imageUrl.startsWith("blob:") ||
+    imageUrl.startsWith("data:")
+  ) {
+    return imageUrl;
+  }
+
+  const backendBaseUrl = (
+    import.meta.env.VITE_BACKEND_BASE_URL ||
+    import.meta.env.VITE_API_BASE_URL?.replace(/\/api\/v1\/?$/, "") ||
+    "http://localhost:8080"
+  ).replace(/\/+$/, "");
+
+  const normalizedPath = imageUrl.startsWith("/")
+    ? imageUrl
+    : `/${imageUrl}`;
+
+  return `${backendBaseUrl}${normalizedPath}`;
+}
+
+export default function ProfileDropdown({ onClose }) {
   const navigate = useNavigate();
-
   const { user, logout } = useAuth();
+  const [imageFailed, setImageFailed] = useState(false);
 
-  const initials = getInitials(
-    user?.firstName,
-    user?.lastName,
+  const initials =
+    getInitials(user?.firstName, user?.lastName) || "U";
+
+  const fullName =
+    [user?.firstName, user?.lastName].filter(Boolean).join(" ") ||
+    "LastKey User";
+
+  const profileImageUrl = resolveProfileImageUrl(
+    user?.profileImageUrl,
   );
+
+  const showProfileImage = Boolean(profileImageUrl) && !imageFailed;
+
+  useEffect(() => {
+    setImageFailed(false);
+  }, [profileImageUrl]);
 
   async function handleLogout() {
     await logout();
-
     onClose?.();
 
     navigate(ROUTES.LOGIN, {
@@ -58,13 +95,23 @@ export default function ProfileDropdown({
     <div className="absolute right-0 top-[calc(100%+12px)] z-40 w-[calc(100vw-2rem)] max-w-xs overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl shadow-slate-950/15">
       <div className="border-b border-slate-100 bg-slate-50 px-5 py-5">
         <div className="flex items-center gap-3">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-blue-600 text-sm font-extrabold text-white shadow-lg shadow-blue-600/20">
-            {initials}
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-blue-600 text-sm font-extrabold text-white shadow-lg shadow-blue-600/20">
+            {showProfileImage ? (
+              <img
+                key={profileImageUrl}
+                src={profileImageUrl}
+                alt={fullName}
+                onError={() => setImageFailed(true)}
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              initials
+            )}
           </div>
 
           <div className="min-w-0">
             <p className="truncate text-sm font-extrabold text-slate-950">
-              {user?.firstName} {user?.lastName}
+              {fullName}
             </p>
 
             <p className="mt-0.5 truncate text-xs text-slate-500">

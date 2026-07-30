@@ -23,6 +23,7 @@ import EmailVerificationModal from "../../components/profile/EmailVerificationMo
 import ProfileForm from "../../components/profile/ProfileForm";
 import Button from "../../components/ui/Button";
 import LoadingSkeleton from "../../components/ui/LoadingSkeleton";
+import { useAuth } from "../../hooks/useAuth";
 import { getErrorMessage } from "../../utils/errorHandler";
 
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
@@ -248,6 +249,7 @@ function SupportCard({ icon: Icon, title, description, tone = "violet" }) {
 
 export default function ProfilePage() {
   const queryClient = useQueryClient();
+  const { updateUser } = useAuth();
   const fileInputRef = useRef(null);
   const [verificationModalOpen, setVerificationModalOpen] = useState(false);
   const [selectedImage, setSelectedImage] = useState(null);
@@ -258,7 +260,7 @@ export default function ProfilePage() {
     queryKey: ["profile"],
     queryFn: async () => {
       const response = await profileApi.getProfile();
-      return response.data;
+      return response?.data?.data ?? response?.data;
     },
   });
 
@@ -277,8 +279,11 @@ export default function ProfilePage() {
         dateOfBirth: values.dateOfBirth || null,
       }),
     onSuccess: (response) => {
+      const updatedProfile = response?.data?.data ?? response?.data;
+
       toast.success("Profile updated successfully.");
-      queryClient.setQueryData(["profile"], response.data);
+      queryClient.setQueryData(["profile"], updatedProfile);
+      updateUser(updatedProfile);
     },
     onError: (error) => {
       toast.error(getErrorMessage(error, "Unable to update your profile."));
@@ -287,13 +292,30 @@ export default function ProfilePage() {
 
   const imageUploadMutation = useMutation({
     mutationFn: (file) => profileApi.updateProfileImage(file),
-    onSuccess: async () => {
+    onSuccess: async (response) => {
       toast.success("Profile image updated successfully.");
       setSelectedImage(null);
       setPreviewUrl(null);
       setImageError("");
       if (fileInputRef.current) fileInputRef.current.value = "";
-      await queryClient.invalidateQueries({ queryKey: ["profile"] });
+
+      // Some backends return the updated user from the upload endpoint.
+      // Use it immediately when available, then refetch the canonical profile.
+      const uploadPayload = response?.data?.data ?? response?.data;
+      if (uploadPayload && typeof uploadPayload === "object") {
+        queryClient.setQueryData(["profile"], (currentProfile) => ({
+          ...(currentProfile || {}),
+          ...uploadPayload,
+        }));
+        updateUser(uploadPayload);
+      }
+
+      const refreshedResponse = await profileApi.getProfile();
+      const refreshedProfile =
+        refreshedResponse?.data?.data ?? refreshedResponse?.data;
+
+      queryClient.setQueryData(["profile"], refreshedProfile);
+      updateUser(refreshedProfile);
     },
     onError: (error) => {
       toast.error(getErrorMessage(error, "Unable to update profile image."));
@@ -316,7 +338,13 @@ export default function ProfilePage() {
     onSuccess: async () => {
       toast.success("Email verified successfully.");
       setVerificationModalOpen(false);
-      await queryClient.invalidateQueries({ queryKey: ["profile"] });
+
+      const refreshedResponse = await profileApi.getProfile();
+      const refreshedProfile =
+        refreshedResponse?.data?.data ?? refreshedResponse?.data;
+
+      queryClient.setQueryData(["profile"], refreshedProfile);
+      updateUser(refreshedProfile);
     },
     onError: (error) => {
       toast.error(getErrorMessage(error, "Invalid or expired OTP."));
