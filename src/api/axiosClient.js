@@ -11,7 +11,7 @@ const API_BASE_URL =
 
 const API_TIMEOUT = Number(
   import.meta.env.VITE_API_TIMEOUT ||
-    20000,
+    90000,
 );
 
 const axiosClient = axios.create({
