@@ -7,7 +7,14 @@ import {
 } from "react";
 
 import { authApi } from "../api/authApi";
-import { tokenService } from "../services/tokenService";
+import {
+  cancelAllRequests,
+  isRequestCancelled,
+} from "../api/axiosClient";
+import {
+  tokenService,
+} from "../services/tokenService";
+import { ROUTES } from "../utils/routePaths";
 
 export const AuthContext =
   createContext(null);
@@ -77,6 +84,20 @@ function extractAuthenticatedUser(
   return null;
 }
 
+function redirectToLogin() {
+  const loginRoute =
+    ROUTES.LOGIN || "/login";
+
+  if (
+    window.location.pathname !==
+    loginRoute
+  ) {
+    window.location.replace(
+      loginRoute,
+    );
+  }
+}
+
 export function AuthProvider({
   children,
 }) {
@@ -87,6 +108,11 @@ export function AuthProvider({
     isInitializing,
     setIsInitializing,
   ] = useState(true);
+
+  const [
+    isLoggingOut,
+    setIsLoggingOut,
+  ] = useState(false);
 
   useEffect(() => {
     function initializeAuthentication() {
@@ -241,9 +267,10 @@ export function AuthProvider({
     useCallback(
       async (email) => {
         const response =
-          await authApi.resendVerificationOtp(
-            email,
-          );
+          await authApi
+            .resendVerificationOtp(
+              email,
+            );
 
         return extractResponsePayload(
           response,
@@ -256,9 +283,10 @@ export function AuthProvider({
     useCallback(
       async (email) => {
         const response =
-          await authApi.forgotPassword(
-            email,
-          );
+          await authApi
+            .forgotPassword(
+              email,
+            );
 
         return extractResponsePayload(
           response,
@@ -271,9 +299,10 @@ export function AuthProvider({
     useCallback(
       async (resetData) => {
         const response =
-          await authApi.resetPassword(
-            resetData,
-          );
+          await authApi
+            .resetPassword(
+              resetData,
+            );
 
         return extractResponsePayload(
           response,
@@ -284,26 +313,65 @@ export function AuthProvider({
 
   const logout = useCallback(
     async () => {
-      const refreshToken =
-        tokenService.getRefreshToken();
+      if (isLoggingOut) {
+        return;
+      }
 
-      try {
-        if (refreshToken) {
+      setIsLoggingOut(true);
+
+      const refreshToken =
+        tokenService
+          .getRefreshToken();
+
+      /*
+       * First cancel all dashboard/profile/
+       * notification requests.
+       */
+      cancelAllRequests(
+        "User logged out",
+      );
+
+      /*
+       * Clear local authentication immediately.
+       * UI does not wait for backend logout.
+       */
+      tokenService.clearSession();
+      setUser(null);
+
+      /*
+       * Redirect immediately so protected
+       * components are unmounted.
+       */
+      redirectToLogin();
+
+      /*
+       * Backend logout is best-effort.
+       * A slow backend must not block UI logout.
+       */
+      if (refreshToken) {
+        try {
           await authApi.logout(
             refreshToken,
           );
+        } catch (error) {
+          if (
+            !isRequestCancelled(
+              error,
+            )
+          ) {
+            console.warn(
+              "Backend logout could not be completed:",
+              error?.response?.data
+                ?.message ||
+                error?.message,
+            );
+          }
         }
-      } catch (error) {
-        console.error(
-          "Backend logout failed:",
-          error,
-        );
-      } finally {
-        tokenService.clearSession();
-        setUser(null);
       }
+
+      setIsLoggingOut(false);
     },
-    [],
+    [isLoggingOut],
   );
 
   const updateUser = useCallback(
@@ -333,9 +401,14 @@ export function AuthProvider({
       user,
 
       isAuthenticated:
-        Boolean(user),
+        Boolean(
+          user &&
+          tokenService.hasSession(),
+        ),
 
       isInitializing,
+
+      isLoggingOut,
 
       login,
 
@@ -356,6 +429,7 @@ export function AuthProvider({
     [
       user,
       isInitializing,
+      isLoggingOut,
       login,
       register,
       verifyEmail,

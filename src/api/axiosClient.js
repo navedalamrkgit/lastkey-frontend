@@ -9,46 +9,116 @@ const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL ||
   "http://localhost:8080/api/v1";
 
-const axiosClient =
-  axios.create({
-    baseURL: API_BASE_URL,
+const API_TIMEOUT = Number(
+  import.meta.env.VITE_API_TIMEOUT ||
+    20000,
+);
 
-    timeout: Number(
-      import.meta.env
-        .VITE_API_TIMEOUT ||
-        20000,
-    ),
+const axiosClient = axios.create({
+  baseURL: API_BASE_URL,
 
-    headers: {
-      Accept: "application/json",
-    },
-  });
+  timeout: API_TIMEOUT,
 
-const refreshClient =
-  axios.create({
-    baseURL: API_BASE_URL,
+  headers: {
+    Accept: "application/json",
+  },
+});
 
-    timeout: Number(
-      import.meta.env
-        .VITE_API_TIMEOUT ||
-        20000,
-    ),
+const refreshClient = axios.create({
+  baseURL: API_BASE_URL,
 
-    headers: {
-      "Content-Type":
-        "application/json",
-      Accept: "application/json",
-    },
-  });
+  timeout: API_TIMEOUT,
 
+  headers: {
+    "Content-Type":
+      "application/json",
+
+    Accept:
+      "application/json",
+  },
+});
+
+/*
+ * A single refresh request will be shared
+ * when multiple requests receive 401 together.
+ */
 let refreshPromise = null;
+
+/*
+ * Tracks every active authenticated request.
+ * These requests are cancelled immediately
+ * when the user logs out.
+ */
+const activeRequestControllers =
+  new Set();
 
 function redirectTo(path) {
   if (
-    window.location.pathname !== path
+    !path ||
+    window.location.pathname === path
   ) {
-    window.location.assign(path);
+    return;
   }
+
+  window.location.replace(path);
+}
+
+function createRequestController() {
+  const controller =
+    new AbortController();
+
+  activeRequestControllers.add(
+    controller,
+  );
+
+  return controller;
+}
+
+function removeRequestController(config) {
+  const controller =
+    config?._requestAbortController;
+
+  if (!controller) {
+    return;
+  }
+
+  activeRequestControllers.delete(
+    controller,
+  );
+}
+
+/*
+ * Cancels all pending Axios requests.
+ * Used during logout and invalid sessions.
+ */
+export function cancelAllRequests(
+  reason = "Session ended",
+) {
+  activeRequestControllers.forEach(
+    (controller) => {
+      try {
+        controller.abort(reason);
+      } catch {
+        // Ignore already-aborted controllers.
+      }
+    },
+  );
+
+  activeRequestControllers.clear();
+}
+
+/*
+ * Axios cancellation helper.
+ */
+export function isRequestCancelled(
+  error,
+) {
+  return (
+    axios.isCancel(error) ||
+    error?.code === "ERR_CANCELED" ||
+    error?.name === "CanceledError" ||
+    error?.name === "AbortError"
+  );
 }
 
 async function refreshAccessToken() {
@@ -99,8 +169,26 @@ axiosClient.interceptors.request.use(
       tokenService.getAccessToken();
 
     if (accessToken) {
+      config.headers =
+        config.headers || {};
+
       config.headers.Authorization =
         `Bearer ${accessToken}`;
+    }
+
+    /*
+     * Do not override a signal explicitly
+     * supplied by a component.
+     */
+    if (!config.signal) {
+      const controller =
+        createRequestController();
+
+      config.signal =
+        controller.signal;
+
+      config._requestAbortController =
+        controller;
     }
 
     return config;
@@ -111,11 +199,30 @@ axiosClient.interceptors.request.use(
 );
 
 axiosClient.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    removeRequestController(
+      response.config,
+    );
+
+    return response;
+  },
 
   async (error) => {
     const originalRequest =
       error.config;
+
+    removeRequestController(
+      originalRequest,
+    );
+
+    /*
+     * Cancellation during logout is expected.
+     * Do not refresh tokens or redirect to
+     * error pages for cancelled requests.
+     */
+    if (isRequestCancelled(error)) {
+      return Promise.reject(error);
+    }
 
     const status =
       error.response?.status;
@@ -131,6 +238,9 @@ axiosClient.interceptors.response.use(
         "/auth/register",
       ) ||
       requestUrl.includes(
+        "/auth/logout",
+      ) ||
+      requestUrl.includes(
         "/auth/refresh-token",
       );
 
@@ -138,34 +248,56 @@ axiosClient.interceptors.response.use(
       status === 401 &&
       originalRequest &&
       !originalRequest._retry &&
-      !isAuthRequest
+      !isAuthRequest &&
+      tokenService.hasSession()
     ) {
-      originalRequest._retry = true;
+      originalRequest._retry =
+        true;
 
       try {
         if (!refreshPromise) {
           refreshPromise =
-            refreshAccessToken().finally(
-              () => {
-                refreshPromise = null;
-              },
-            );
+            refreshAccessToken()
+              .finally(() => {
+                refreshPromise =
+                  null;
+              });
         }
 
         const accessToken =
           await refreshPromise;
 
-        originalRequest.headers.Authorization =
+        originalRequest.headers =
+          originalRequest.headers ||
+          {};
+
+        originalRequest
+          .headers
+          .Authorization =
           `Bearer ${accessToken}`;
+
+        /*
+         * Old request signal may already
+         * be completed or aborted.
+         */
+        delete originalRequest.signal;
+        delete originalRequest
+          ._requestAbortController;
 
         return axiosClient(
           originalRequest,
         );
       } catch (refreshError) {
-        tokenService.clearTokens();
+        cancelAllRequests(
+          "Authentication expired",
+        );
+
+        tokenService.clearSession();
 
         redirectTo(
-          ROUTES.UNAUTHORIZED,
+          ROUTES.LOGIN ||
+            ROUTES.UNAUTHORIZED ||
+            "/login",
         );
 
         return Promise.reject(
@@ -181,7 +313,8 @@ axiosClient.interceptors.response.use(
       )
     ) {
       redirectTo(
-        ROUTES.FORBIDDEN,
+        ROUTES.FORBIDDEN ||
+          "/forbidden",
       );
     }
 
@@ -194,8 +327,10 @@ axiosClient.interceptors.response.use(
         {
           method:
             originalRequest?.method,
+
           url:
             originalRequest?.url,
+
           status,
         },
       );
