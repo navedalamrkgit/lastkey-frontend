@@ -44,9 +44,7 @@ import {
   ROUTES,
 } from "../../utils/routePaths";
 
-function resolveProfileImageUrl(
-  imageUrl,
-) {
+function resolveProfileImageUrl(imageUrl) {
   if (!imageUrl) {
     return null;
   }
@@ -60,17 +58,27 @@ function resolveProfileImageUrl(
     return imageUrl;
   }
 
-  const backendBaseUrl =
-    (
-      import.meta.env
-        .VITE_BACKEND_BASE_URL ||
-      "http://localhost:8080"
-    ).replace(/\/+$/, "");
+  const configuredBackendUrl =
+    import.meta.env.VITE_BACKEND_BASE_URL ||
+    import.meta.env.VITE_API_BASE_URL?.replace(/\/api\/v1\/?$/, "");
 
-  const normalizedPath =
-    imageUrl.startsWith("/")
-      ? imageUrl
-      : `/${imageUrl}`;
+  const backendBaseUrl = configuredBackendUrl
+    ? configuredBackendUrl.replace(/\/+$/, "")
+    : import.meta.env.DEV
+      ? "http://localhost:8080"
+      : null;
+
+  if (!backendBaseUrl) {
+    console.error(
+      "Missing VITE_BACKEND_BASE_URL or VITE_API_BASE_URL in production.",
+    );
+
+    return null;
+  }
+
+  const normalizedPath = imageUrl.startsWith("/")
+    ? imageUrl
+    : `/${imageUrl}`;
 
   return `${backendBaseUrl}${normalizedPath}`;
 }

@@ -7,11 +7,19 @@ import { ROUTES } from "../utils/routePaths";
 
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL ||
-  "http://localhost:8080/api/v1";
+  (import.meta.env.DEV
+    ? "http://localhost:8080/api/v1"
+    : "");
+
+if (!API_BASE_URL) {
+  throw new Error(
+    "VITE_API_BASE_URL is required in production.",
+  );
+}
 
 const API_TIMEOUT = Number(
   import.meta.env.VITE_API_TIMEOUT ||
-    90000,
+    180000,
 );
 
 const axiosClient = axios.create({

@@ -29,45 +29,108 @@ import { getErrorMessage } from "../../utils/errorHandler";
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
 const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
 
+function getBackendBaseUrl() {
+  const configuredBackendUrl =
+    import.meta.env.VITE_BACKEND_BASE_URL ||
+    import.meta.env.VITE_API_BASE_URL?.replace(/\/api\/v1\/?$/, "");
+
+  if (configuredBackendUrl) {
+    return configuredBackendUrl.replace(/\/+$/, "");
+  }
+
+  if (import.meta.env.DEV) {
+    return "http://localhost:8080";
+  }
+
+  console.error(
+    "Missing VITE_BACKEND_BASE_URL or VITE_API_BASE_URL in production.",
+  );
+
+  return null;
+}
+
 function getProfileImageUrl(imageUrl) {
-  if (!imageUrl) return null;
+  if (!imageUrl) {
+    return null;
+  }
 
   if (
     imageUrl.startsWith("http://") ||
     imageUrl.startsWith("https://") ||
-    imageUrl.startsWith("blob:")
+    imageUrl.startsWith("blob:") ||
+    imageUrl.startsWith("data:")
   ) {
     return imageUrl;
   }
 
-  const backendBaseUrl =
-    import.meta.env.VITE_API_BASE_URL?.replace(/\/api\/v1\/?$/, "") ||
-    "http://localhost:8080";
+  const backendBaseUrl = getBackendBaseUrl();
 
-  return `${backendBaseUrl}${imageUrl}`;
+  if (!backendBaseUrl) {
+    return null;
+  }
+
+  const normalizedPath = imageUrl.startsWith("/")
+    ? imageUrl
+    : `/${imageUrl}`;
+
+  return `${backendBaseUrl}${normalizedPath}`;
+}
+
+function hasProfileValue(value) {
+  if (value === null || value === undefined) {
+    return false;
+  }
+
+  if (typeof value === "string") {
+    return value.trim() !== "";
+  }
+
+  return true;
 }
 
 function calculateProfileCompletion(profile) {
+  if (!profile) {
+    return 0;
+  }
+
+  const nestedAddress =
+    profile.address && typeof profile.address === "object"
+      ? profile.address
+      : {};
+
+  const addressLine =
+    typeof profile.address === "string"
+      ? profile.address
+      : profile.addressLine ??
+        profile.streetAddress ??
+        nestedAddress.addressLine ??
+        nestedAddress.streetAddress ??
+        nestedAddress.street;
+
   const fields = [
-    profile?.firstName,
-    profile?.lastName,
-    profile?.email,
-    profile?.phone,
-    profile?.dateOfBirth,
-    profile?.occupation,
-    profile?.address,
-    profile?.city,
-    profile?.state,
-    profile?.country,
-    profile?.postalCode,
-    profile?.profileImageUrl,
+    profile.firstName,
+    profile.lastName,
+    profile.email,
+    profile.phone ?? profile.phoneNumber ?? profile.mobileNumber,
+    profile.dateOfBirth ?? profile.dob,
+    profile.occupation,
+    addressLine,
+    profile.city ?? nestedAddress.city,
+    profile.state ?? nestedAddress.state,
+    profile.country ?? nestedAddress.country,
+    profile.postalCode ??
+      profile.zipCode ??
+      nestedAddress.postalCode ??
+      nestedAddress.zipCode,
+    profile.profileImageUrl ??
+      profile.profileImage ??
+      profile.imageUrl ??
+      profile.avatarUrl,
   ];
 
-  const completed = fields.filter(
-    (value) => value !== null && value !== undefined && String(value).trim() !== "",
-  ).length;
+  const completedFields = fields.filter(hasProfileValue).length;
 
-  return Math.round((completed / fields.length) * 100);
+  return Math.round((completedFields / fields.length) * 100);
 }
 
 function CompletionMeter({ value }) {
