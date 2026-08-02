@@ -3,7 +3,10 @@ import axios from "axios";
 import {
   tokenService,
 } from "../services/tokenService";
-import { ROUTES } from "../utils/routePaths";
+
+import {
+  ROUTES,
+} from "../utils/routePaths";
 
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL ||
@@ -51,6 +54,13 @@ const activeRequestControllers =
 
 function getLoginRoute() {
   return ROUTES.LOGIN || "/login";
+}
+
+function getForbiddenRoute() {
+  return (
+    ROUTES.FORBIDDEN ||
+    "/forbidden"
+  );
 }
 
 function redirectTo(path) {
@@ -119,15 +129,52 @@ function clearAuthenticationAndRedirect() {
   tokenService.clearSession();
 
   /*
-   * Existing profile/notification requests
-   * turant cancel karo.
+   * Existing profile, dashboard,
+   * notification aur other protected
+   * requests ko immediately cancel karo.
    */
   cancelAllRequests(
     "Authentication session ended",
   );
 
+  /*
+   * Login page par hard redirect use kiya
+   * hai taaki protected React state aur
+   * mounted components completely reset ho.
+   */
   redirectTo(
     getLoginRoute(),
+  );
+}
+
+function isPublicAuthenticationRequest(
+  requestUrl = "",
+) {
+  return (
+    requestUrl.includes(
+      "/auth/login",
+    ) ||
+    requestUrl.includes(
+      "/auth/register",
+    ) ||
+    requestUrl.includes(
+      "/auth/refresh-token",
+    ) ||
+    requestUrl.includes(
+      "/auth/logout",
+    ) ||
+    requestUrl.includes(
+      "/auth/verify-email",
+    ) ||
+    requestUrl.includes(
+      "/auth/resend",
+    ) ||
+    requestUrl.includes(
+      "/auth/forgot-password",
+    ) ||
+    requestUrl.includes(
+      "/auth/reset-password",
+    )
   );
 }
 
@@ -154,10 +201,14 @@ async function refreshAccessToken() {
     response?.data;
 
   const newAccessToken =
-    responseBody?.accessToken;
+    responseBody?.accessToken ??
+    responseBody?.access_token ??
+    responseBody?.token ??
+    responseBody?.jwtToken;
 
   const newRefreshToken =
-    responseBody?.refreshToken ||
+    responseBody?.refreshToken ??
+    responseBody?.refresh_token ??
     refreshToken;
 
   if (!newAccessToken) {
@@ -188,11 +239,18 @@ axiosClient.interceptors.request.use(
     if (accessToken) {
       config.headers.Authorization =
         `Bearer ${accessToken}`;
+    } else {
+      /*
+       * Retried ya reused config me purana
+       * Authorization header bacha ho to
+       * session clear hone ke baad remove karo.
+       */
+      delete config.headers.Authorization;
     }
 
     /*
      * Component ne khud AbortSignal nahi diya,
-     * to request ko global logout cancellation
+     * to request ko global cancellation
      * system me register karo.
      */
     if (!config.signal) {
@@ -228,53 +286,68 @@ axiosClient.interceptors.response.use(
 
   async (error) => {
     const originalRequest =
-      error.config;
+      error?.config;
 
     removeRequestController(
       originalRequest,
     );
 
+    /*
+     * Logout ya component unmount ke time
+     * cancel hui requests ko authentication
+     * error ki tarah process mat karo.
+     */
     if (isRequestCancelled(error)) {
       return Promise.reject(error);
     }
 
     const status =
-      error.response?.status;
+      error?.response?.status;
 
     const requestUrl =
       originalRequest?.url || "";
 
-    const isLoginRequest =
-      requestUrl.includes(
-        "/auth/login",
-      );
-
-    const isRegisterRequest =
-      requestUrl.includes(
-        "/auth/register",
-      );
-
-    const isRefreshRequest =
-      requestUrl.includes(
-        "/auth/refresh-token",
-      );
-
-    const isLogoutRequest =
-      requestUrl.includes(
-        "/auth/logout",
-      );
-
     const isPublicAuthRequest =
-      isLoginRequest ||
-      isRegisterRequest ||
-      isRefreshRequest ||
-      isLogoutRequest;
+      isPublicAuthenticationRequest(
+        requestUrl,
+      );
 
     /*
-     * Logout ke baad React component agar
-     * /users/me ya notification API dubara call
-     * kare aur 401 aaye, retry mat karo.
-     * Login page par immediately bhejo.
+     * Browser ko response nahi mila:
+     * possible network issue, backend sleep,
+     * DNS issue, timeout ya CORS failure.
+     *
+     * Is case me 401/403 flow execute nahi
+     * karna chahiye because status undefined hai.
+     */
+    if (!error.response) {
+      if (import.meta.env.PROD) {
+        console.error(
+          "Network request failed:",
+          {
+            method:
+              originalRequest?.method,
+
+            url:
+              originalRequest?.url,
+
+            code:
+              error?.code,
+
+            message:
+              error?.message,
+          },
+        );
+      }
+
+      return Promise.reject(error);
+    }
+
+    /*
+     * Logout ke baad mounted component agar
+     * /users/me, dashboard ya notification API
+     * call kare aur backend 401 return kare,
+     * refresh attempt mat karo.
      */
     if (
       status === 401 &&
@@ -288,7 +361,7 @@ axiosClient.interceptors.response.use(
 
     /*
      * Active session me access token expire hua
-     * ho to refresh token se ek baar retry karo.
+     * ho to refresh token se sirf ek baar retry.
      */
     if (
       status === 401 &&
@@ -301,6 +374,10 @@ axiosClient.interceptors.response.use(
         true;
 
       try {
+        /*
+         * Multiple APIs ek saath 401 dein to
+         * sirf ek refresh request execute hogi.
+         */
         if (!refreshPromise) {
           refreshPromise =
             refreshAccessToken()
@@ -313,6 +390,19 @@ axiosClient.interceptors.response.use(
         const accessToken =
           await refreshPromise;
 
+        /*
+         * Refresh ke wait ke dauran user logout
+         * kar sakta hai. Aise case me request
+         * retry nahi honi chahiye.
+         */
+        if (
+          !tokenService.hasSession()
+        ) {
+          throw new Error(
+            "Authentication session ended during token refresh.",
+          );
+        }
+
         originalRequest.headers =
           originalRequest.headers ||
           {};
@@ -323,10 +413,12 @@ axiosClient.interceptors.response.use(
           `Bearer ${accessToken}`;
 
         /*
-         * Purana AbortSignal completed ho sakta
-         * hai, retry ke liye naya signal banega.
+         * Purana AbortSignal completed ya
+         * aborted ho sakta hai. Retry request
+         * ke liye naya controller create hoga.
          */
         delete originalRequest.signal;
+
         delete originalRequest
           ._requestAbortController;
 
@@ -342,14 +434,46 @@ axiosClient.interceptors.response.use(
       }
     }
 
+    /*
+     * Public login/register request ka 401/403
+     * form component khud display karega.
+     * Global redirect nahi karna.
+     */
+    if (
+      status === 401 &&
+      isPublicAuthRequest
+    ) {
+      return Promise.reject(error);
+    }
+
+    /*
+     * Logout ke baad backend /users/me ko
+     * 403 return kare to forbidden page par
+     * redirect nahi karna.
+     *
+     * Session nahi hai to login page correct hai.
+     */
     if (
       status === 403 &&
       !isPublicAuthRequest
     ) {
+      if (
+        !tokenService.hasSession()
+      ) {
+        clearAuthenticationAndRedirect();
+
+        return Promise.reject(error);
+      }
+
+      /*
+       * Active valid session ke saath 403 ka
+       * meaning authorization/permission denied.
+       */
       redirectTo(
-        ROUTES.FORBIDDEN ||
-          "/forbidden",
+        getForbiddenRoute(),
       );
+
+      return Promise.reject(error);
     }
 
     if (

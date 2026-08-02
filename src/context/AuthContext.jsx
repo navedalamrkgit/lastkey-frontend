@@ -6,18 +6,33 @@ import {
   useState,
 } from "react";
 
+import {
+  useQueryClient,
+} from "@tanstack/react-query";
+
 import { authApi } from "../api/authApi";
+
 import {
   cancelAllRequests,
   isRequestCancelled,
 } from "../api/axiosClient";
-import { tokenService } from "../services/tokenService";
-import { ROUTES } from "../utils/routePaths";
 
-export const AuthContext = createContext(null);
+import {
+  tokenService,
+} from "../services/tokenService";
 
-function extractResponsePayload(response) {
-  const responseBody = response?.data ?? response;
+import {
+  ROUTES,
+} from "../utils/routePaths";
+
+export const AuthContext =
+  createContext(null);
+
+function extractResponsePayload(
+  response,
+) {
+  const responseBody =
+    response?.data ?? response;
 
   return (
     responseBody?.data ??
@@ -27,9 +42,14 @@ function extractResponsePayload(response) {
 }
 
 function normalizeUserData(value) {
-  const payload = extractResponsePayload(value);
+  const payload =
+    extractResponsePayload(value);
 
-  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+  if (
+    !payload ||
+    typeof payload !== "object" ||
+    Array.isArray(payload)
+  ) {
     return null;
   }
 
@@ -40,7 +60,8 @@ function normalizeUserData(value) {
     payload?.authenticatedUser ??
     null;
 
-  const normalized = nestedUser ?? payload;
+  const normalized =
+    nestedUser ?? payload;
 
   if (
     !normalized ||
@@ -53,8 +74,12 @@ function normalizeUserData(value) {
   return normalized;
 }
 
-function extractAuthenticatedUser(payload, credentials = {}) {
-  const normalizedUser = normalizeUserData(payload);
+function extractAuthenticatedUser(
+  payload,
+  credentials = {},
+) {
+  const normalizedUser =
+    normalizeUserData(payload);
 
   if (!normalizedUser) {
     return null;
@@ -77,9 +102,16 @@ function extractAuthenticatedUser(payload, credentials = {}) {
     credentials?.email ??
     null;
 
-  const firstName = normalizedUser?.firstName ?? "";
-  const lastName = normalizedUser?.lastName ?? "";
-  const role = normalizedUser?.role ?? normalizedUser?.roles ?? null;
+  const firstName =
+    normalizedUser?.firstName ?? "";
+
+  const lastName =
+    normalizedUser?.lastName ?? "";
+
+  const role =
+    normalizedUser?.role ??
+    normalizedUser?.roles ??
+    null;
 
   if (
     email ||
@@ -90,7 +122,12 @@ function extractAuthenticatedUser(payload, credentials = {}) {
   ) {
     return {
       ...normalizedUser,
-      id: normalizedUser?.userId ?? normalizedUser?.id ?? null,
+
+      id:
+        normalizedUser?.userId ??
+        normalizedUser?.id ??
+        null,
+
       email,
       firstName,
       lastName,
@@ -102,32 +139,62 @@ function extractAuthenticatedUser(payload, credentials = {}) {
 }
 
 function redirectToLogin() {
-  const loginRoute = ROUTES.LOGIN || "/login";
+  const loginRoute =
+    ROUTES.LOGIN || "/login";
 
-  if (window.location.pathname !== loginRoute) {
-    window.location.replace(loginRoute);
+  if (
+    window.location.pathname !==
+    loginRoute
+  ) {
+    window.location.replace(
+      loginRoute,
+    );
   }
 }
 
-export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null);
-  const [isInitializing, setIsInitializing] = useState(true);
-  const [isLoggingOut, setIsLoggingOut] = useState(false);
+export function AuthProvider({
+  children,
+}) {
+  const queryClient =
+    useQueryClient();
+
+  const [user, setUser] =
+    useState(null);
+
+  const [
+    isInitializing,
+    setIsInitializing,
+  ] = useState(true);
+
+  const [
+    isLoggingOut,
+    setIsLoggingOut,
+  ] = useState(false);
 
   useEffect(() => {
     function initializeAuthentication() {
       try {
-        const storedUser = tokenService.getUser();
-        const hasSession = tokenService.hasSession();
+        const storedUser =
+          tokenService.getUser();
 
-        if (storedUser && hasSession) {
+        const hasSession =
+          tokenService.hasSession();
+
+        if (
+          storedUser &&
+          hasSession
+        ) {
           setUser(storedUser);
         } else {
           tokenService.clearSession();
           setUser(null);
         }
       } catch (error) {
-        console.error("Authentication initialization failed:", error);
+        console.error(
+          "Authentication initialization failed:",
+          error,
+        );
+
         tokenService.clearSession();
         setUser(null);
       } finally {
@@ -138,157 +205,331 @@ export function AuthProvider({ children }) {
     initializeAuthentication();
   }, []);
 
-  const login = useCallback(async (credentials) => {
-    const response = await authApi.login(credentials);
-    const payload = extractResponsePayload(response);
+  const login = useCallback(
+    async (credentials) => {
+      const response =
+        await authApi.login(
+          credentials,
+        );
 
-    if (import.meta.env.DEV) {
-      console.log("Login API response:", response?.data);
-      console.log("Normalized login payload:", payload);
-    }
+      const payload =
+        extractResponsePayload(
+          response,
+        );
 
-    const accessToken =
-      payload?.accessToken ??
-      payload?.access_token ??
-      payload?.token ??
-      payload?.jwtToken;
+      if (import.meta.env.DEV) {
+        console.log(
+          "Login API response:",
+          response?.data,
+        );
 
-    const refreshToken = payload?.refreshToken ?? payload?.refresh_token;
-
-    if (!accessToken) {
-      throw new Error(
-        "Login succeeded, but the access token was not found in the server response.",
-      );
-    }
-
-    const authenticatedUser = extractAuthenticatedUser(payload, credentials);
-
-    const normalizedSession = {
-      ...payload,
-      accessToken,
-      refreshToken,
-      user: authenticatedUser,
-    };
-
-    tokenService.saveSession(normalizedSession);
-
-    if (authenticatedUser) {
-      tokenService.saveUser(authenticatedUser);
-      setUser(authenticatedUser);
-    } else {
-      const savedUser = tokenService.getUser();
-
-      if (savedUser) {
-        setUser(savedUser);
-      } else {
-        throw new Error(
-          "Login succeeded, but user information was not returned by the server.",
+        console.log(
+          "Normalized login payload:",
+          payload,
         );
       }
-    }
 
-    return normalizedSession;
-  }, []);
+      const accessToken =
+        payload?.accessToken ??
+        payload?.access_token ??
+        payload?.token ??
+        payload?.jwtToken;
 
-  const register = useCallback(async (registrationData) => {
-    const response = await authApi.register(registrationData);
-    return extractResponsePayload(response);
-  }, []);
+      const refreshToken =
+        payload?.refreshToken ??
+        payload?.refresh_token;
 
-  const verifyEmail = useCallback(async (verificationData) => {
-    const response = await authApi.verifyEmail(verificationData);
-    return extractResponsePayload(response);
-  }, []);
+      if (!accessToken) {
+        throw new Error(
+          "Login succeeded, but the access token was not found in the server response.",
+        );
+      }
 
-  const resendVerificationOtp = useCallback(async (email) => {
-    const response = await authApi.resendVerificationOtp(email);
-    return extractResponsePayload(response);
-  }, []);
+      const authenticatedUser =
+        extractAuthenticatedUser(
+          payload,
+          credentials,
+        );
 
-  const forgotPassword = useCallback(async (email) => {
-    const response = await authApi.forgotPassword(email);
-    return extractResponsePayload(response);
-  }, []);
-
-  const resetPassword = useCallback(async (resetData) => {
-    const response = await authApi.resetPassword(resetData);
-    return extractResponsePayload(response);
-  }, []);
-
-  const updateUser = useCallback((updatedUserData) => {
-    const normalizedData = normalizeUserData(updatedUserData);
-
-    if (!normalizedData) {
-      console.warn("updateUser received invalid user data:", updatedUserData);
-      return;
-    }
-
-    setUser((currentUser) => {
-      const previousUser = currentUser ?? tokenService.getUser() ?? {};
-      const updatedUser = {
-        ...previousUser,
-        ...normalizedData,
+      const normalizedSession = {
+        ...payload,
+        accessToken,
+        refreshToken,
+        user: authenticatedUser,
       };
 
-      tokenService.saveUser(updatedUser);
-      return updatedUser;
-    });
-  }, []);
+      tokenService.saveSession(
+        normalizedSession,
+      );
 
-  const replaceUser = useCallback((latestUserData) => {
-    const normalizedData = normalizeUserData(latestUserData);
+      /*
+       * Previous user ki cached profile,
+       * notifications aur dashboard data remove.
+       */
+      await queryClient.cancelQueries();
+      queryClient.clear();
 
-    if (!normalizedData) {
-      console.warn("replaceUser received invalid user data:", latestUserData);
-      return;
-    }
+      if (authenticatedUser) {
+        tokenService.saveUser(
+          authenticatedUser,
+        );
 
-    tokenService.saveUser(normalizedData);
-    setUser(normalizedData);
-  }, []);
+        setUser(
+          authenticatedUser,
+        );
+      } else {
+        const savedUser =
+          tokenService.getUser();
 
-  const updateProfileImage = useCallback(
-    (profileImageUrl) => {
-      updateUser({ profileImageUrl: profileImageUrl || null });
-    },
-    [updateUser],
-  );
-
-  const logout = useCallback(async () => {
-    if (isLoggingOut) {
-      return;
-    }
-
-    setIsLoggingOut(true);
-    const refreshToken = tokenService.getRefreshToken();
-
-    cancelAllRequests("User logged out");
-    tokenService.clearSession();
-    setUser(null);
-    redirectToLogin();
-
-    if (refreshToken) {
-      try {
-        await authApi.logout(refreshToken);
-      } catch (error) {
-        if (!isRequestCancelled(error)) {
-          console.warn(
-            "Backend logout could not be completed:",
-            error?.response?.data?.message || error?.message,
+        if (savedUser) {
+          setUser(savedUser);
+        } else {
+          throw new Error(
+            "Login succeeded, but user information was not returned by the server.",
           );
         }
       }
-    }
 
-    setIsLoggingOut(false);
-  }, [isLoggingOut]);
+      return normalizedSession;
+    },
+    [queryClient],
+  );
+
+  const register = useCallback(
+    async (registrationData) => {
+      const response =
+        await authApi.register(
+          registrationData,
+        );
+
+      return extractResponsePayload(
+        response,
+      );
+    },
+    [],
+  );
+
+  const verifyEmail = useCallback(
+    async (verificationData) => {
+      const response =
+        await authApi.verifyEmail(
+          verificationData,
+        );
+
+      return extractResponsePayload(
+        response,
+      );
+    },
+    [],
+  );
+
+  const resendVerificationOtp =
+    useCallback(async (email) => {
+      const response =
+        await authApi
+          .resendVerificationOtp(
+            email,
+          );
+
+      return extractResponsePayload(
+        response,
+      );
+    }, []);
+
+  const forgotPassword =
+    useCallback(async (email) => {
+      const response =
+        await authApi
+          .forgotPassword(email);
+
+      return extractResponsePayload(
+        response,
+      );
+    }, []);
+
+  const resetPassword =
+    useCallback(async (resetData) => {
+      const response =
+        await authApi
+          .resetPassword(resetData);
+
+      return extractResponsePayload(
+        response,
+      );
+    }, []);
+
+  const updateUser = useCallback(
+    (updatedUserData) => {
+      const normalizedData =
+        normalizeUserData(
+          updatedUserData,
+        );
+
+      if (!normalizedData) {
+        console.warn(
+          "updateUser received invalid user data:",
+          updatedUserData,
+        );
+
+        return;
+      }
+
+      setUser((currentUser) => {
+        const previousUser =
+          currentUser ??
+          tokenService.getUser() ??
+          {};
+
+        const updatedUser = {
+          ...previousUser,
+          ...normalizedData,
+        };
+
+        tokenService.saveUser(
+          updatedUser,
+        );
+
+        return updatedUser;
+      });
+    },
+    [],
+  );
+
+  const replaceUser = useCallback(
+    (latestUserData) => {
+      const normalizedData =
+        normalizeUserData(
+          latestUserData,
+        );
+
+      if (!normalizedData) {
+        console.warn(
+          "replaceUser received invalid user data:",
+          latestUserData,
+        );
+
+        return;
+      }
+
+      tokenService.saveUser(
+        normalizedData,
+      );
+
+      setUser(normalizedData);
+    },
+    [],
+  );
+
+  const updateProfileImage =
+    useCallback(
+      (profileImageUrl) => {
+        updateUser({
+          profileImageUrl:
+            profileImageUrl ||
+            null,
+        });
+      },
+      [updateUser],
+    );
+
+  const logout = useCallback(
+    async () => {
+      if (isLoggingOut) {
+        return;
+      }
+
+      setIsLoggingOut(true);
+
+      const refreshToken =
+        tokenService
+          .getRefreshToken();
+
+      try {
+        /*
+         * Sabse pehle React Query ki
+         * running requests aur automatic
+         * retries stop karo.
+         */
+        await queryClient
+          .cancelQueries();
+
+        /*
+         * Existing Axios protected
+         * requests cancel karo.
+         */
+        cancelAllRequests(
+          "User logout started",
+        );
+
+        /*
+         * Backend ko refresh token revoke
+         * karne ka chance do.
+         *
+         * Redirect is request se pehle nahi
+         * hoga, warna browser request ko
+         * terminate kar sakta hai.
+         */
+        if (refreshToken) {
+          try {
+            await authApi.logout(
+              refreshToken,
+            );
+          } catch (error) {
+            if (
+              !isRequestCancelled(
+                error,
+              )
+            ) {
+              console.warn(
+                "Backend logout could not be completed:",
+                error?.response
+                  ?.data?.message ||
+                  error?.message,
+              );
+            }
+          }
+        }
+      } finally {
+        /*
+         * Ab local session remove karo.
+         */
+        tokenService.clearSession();
+        setUser(null);
+
+        /*
+         * Cached /users/me, dashboard,
+         * notification and other protected
+         * query data completely delete.
+         */
+        queryClient.clear();
+
+        /*
+         * Cache clear hone ke baad redirect.
+         */
+        redirectToLogin();
+
+        setIsLoggingOut(false);
+      }
+    },
+    [
+      isLoggingOut,
+      queryClient,
+    ],
+  );
 
   const value = useMemo(
     () => ({
       user,
-      isAuthenticated: Boolean(user && tokenService.hasSession()),
+
+      isAuthenticated:
+        Boolean(
+          user &&
+            tokenService.hasSession(),
+        ),
+
       isInitializing,
       isLoggingOut,
+
       login,
       register,
       verifyEmail,
@@ -317,5 +558,11 @@ export function AuthProvider({ children }) {
     ],
   );
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider
+      value={value}
+    >
+      {children}
+    </AuthContext.Provider>
+  );
 }
